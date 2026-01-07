@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pool-manager-ingress
+  namespace: network-pool-manager
+  annotations:
+    # Uncomment for nginx ingress controller
+    # kubernetes.io/ingress.class: nginx
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+
+    # Uncomment for HTTPS redirect
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+    - host: pool-manager.example.com  # Change to your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pool-manager-service
+                port:
+                  number: 80
+  # Uncomment for TLS
+  # tls:
+  #   - hosts:
+  #       - pool-manager.example.com
+  #     secretName: pool-manager-tls
