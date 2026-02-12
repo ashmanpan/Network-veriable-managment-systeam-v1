@@ -1,0 +1,220 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: can-aaipe
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pool-manager-secret
+  namespace: can-aaipe
+type: Opaque
+stringData:
+  POSTGRES_USER: "poolmanager"
+  POSTGRES_PASSWORD: "poolmanager123"
+  DATABASE_URL: "postgresql://poolmanager:poolmanager123@postgres-service:5432/network_pools"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: can-aaipe
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: docker.io/library/postgres:15
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: pool-manager-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pool-manager-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          value: "network_pools"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - poolmanager
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - poolmanager
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: postgres-storage
+        emptyDir: {}  # Using emptyDir instead of PVC (non-persistent)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: can-aaipe
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-pool-manager
+  namespace: can-aaipe
+  labels:
+    app: network-pool-manager
+    component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: network-pool-manager
+  template:
+    metadata:
+      labels:
+        app: network-pool-manager
+        component: api
+    spec:
+      containers:
+      - name: network-pool-manager
+        image: 567097740753.dkr.ecr.ap-southeast-1.amazonaws.com/apj/can-aaipe:network-pool-manager-1.0.1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        env:
+        # Database Configuration
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: pool-manager-secret
+              key: DATABASE_URL
+        
+        # API Configuration
+        - name: API_V1_PREFIX
+          value: "/api/v1"
+        
+        # Logging
+        - name: LOG_LEVEL
+          value: "INFO"
+        
+        # Namespace (for reference)
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 40
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pool-manager-service
+  namespace: can-aaipe
+  labels:
+    app: network-pool-manager
+spec:
+  selector:
+    app: network-pool-manager
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    nodePort: 30404
+    protocol: TCP
+  type: NodePort
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pool-manager-ingress
+  namespace: can-aaipe
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/success-codes: '200'
+spec:
+  rules:
+  - host: network-pool-manager.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: pool-manager-service
+            port:
+              number: 80
+

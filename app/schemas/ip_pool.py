@@ -23,7 +23,7 @@ class IPPoolCreate(BaseModel):
             network = ipaddress.ip_network(v, strict=False)
             return str(network)
         except ValueError as e:
-            raise ValueError(f"Invalid CIDR notation: {e}")
+            raise ValueError("Invalid CIDR notation")
 
 
 class IPPoolResponse(BaseModel):
@@ -34,8 +34,8 @@ class IPPoolResponse(BaseModel):
     cidr: str
     network_address: str
     broadcast_address: Optional[str]
-    total_addresses: int
-    usable_addresses: int
+    total_addresses: int | str  # Support both int (IPv4) and str (IPv6)
+    usable_addresses: int | str  # Support both int (IPv4) and str (IPv6)
     allocated_count: int = 0
     available_count: int = 0
     created_at: datetime
@@ -99,7 +99,7 @@ class IPReleaseRequest(BaseModel):
             ipaddress.ip_network(v, strict=False)
             return v
         except ValueError as e:
-            raise ValueError(f"Invalid CIDR: {e}")
+            raise ValueError("Invalid CIDR")
 
 
 class IPAllocationListResponse(BaseModel):

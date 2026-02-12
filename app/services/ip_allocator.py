@@ -80,8 +80,8 @@ class IPAllocatorService:
             cidr=pool_data.cidr,
             network_address=network_info["network_address"],
             broadcast_address=network_info["broadcast_address"],
-            total_addresses=network_info["total_addresses"],
-            usable_addresses=network_info["total_addresses"],  # All addresses can be allocated as blocks
+            total_addresses=str(network_info["total_addresses"]),  # Store as string for IPv6 support
+            usable_addresses=str(network_info["total_addresses"]),  # Store as string for IPv6 support
             next_available_index=0,
         )
 
@@ -267,10 +267,13 @@ class IPAllocatorService:
         """Get allocation statistics for a pool."""
         allocated_addresses = IPAllocatorService.get_allocated_addresses(db, pool.id)
         allocated_count = len(allocated_addresses)
+        
+        # Convert total_addresses from string to int for arithmetic
+        total_addresses = int(pool.total_addresses)
 
         return {
             "allocated_count": allocated_count,
-            "available_count": pool.total_addresses - allocated_count,
+            "available_count": total_addresses - allocated_count,
         }
 
     @staticmethod

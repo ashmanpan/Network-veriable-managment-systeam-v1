@@ -14,8 +14,8 @@ class IPPool(Base):
     cidr = Column(String(50), nullable=False)
     network_address = Column(String(50), nullable=False)
     broadcast_address = Column(String(50))
-    total_addresses = Column(BigInteger, nullable=False)
-    usable_addresses = Column(BigInteger, nullable=False)
+    total_addresses = Column(String(50), nullable=False)  # Changed to String for IPv6 support
+    usable_addresses = Column(String(50), nullable=False)  # Changed to String for IPv6 support
     next_available_index = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

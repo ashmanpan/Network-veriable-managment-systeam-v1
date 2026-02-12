@@ -1,0 +1,37 @@
+# Network Pool Manager - Deployment Commands
+# Version: 1.0.0
+
+# Navigate to directory
+cd /Users/prathmeshsambrekar/Documents/C-can-aape-v02/Network-veriable-managment-systeam-v1
+
+# Build image for linux/amd64 (AWS EKS)
+docker buildx build --platform linux/amd64 -t network-pool-manager:1.0.0 -f Dockerfile --load .
+
+# Authenticate with ECR
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 567097740753.dkr.ecr.ap-southeast-1.amazonaws.com
+
+# Tag image for ECR
+docker tag network-pool-manager:1.0.0 567097740753.dkr.ecr.ap-southeast-1.amazonaws.com/apj/can-aaipe:network-pool-manager-1.0.0
+
+# Push to ECR
+docker push 567097740753.dkr.ecr.ap-southeast-1.amazonaws.com/apj/can-aaipe:network-pool-manager-1.0.0
+
+# Update and apply deployment
+sed -i '' 's/network-pool-manager-[0-9]\+\.[0-9]\+\.[0-9]\+/network-pool-manager-1.0.0/g' deployment.yaml
+kubectl apply -f deployment.yaml
+
+# Wait for deployment
+kubectl wait --for=condition=ready pod -l app=network-pool-manager -n can-aaipe --timeout=180s
+
+# Monitor deployment
+kubectl get pods -n can-aaipe -w
+
+# Get service URL
+kubectl get svc -n can-aaipe
+
+# View logs
+kubectl logs -n can-aaipe -l app=network-pool-manager -f
+
+# Port forward for local access
+kubectl port-forward -n can-aaipe svc/pool-manager-service 8000:80
+
